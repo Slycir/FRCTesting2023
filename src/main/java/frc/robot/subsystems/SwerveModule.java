@@ -6,16 +6,18 @@ package frc.robot.subsystems;
 
 import com.ctre.phoenix.sensors.CANCoder;
 import com.revrobotics.CANSparkMax;
+import com.revrobotics.SparkMaxPIDController;
 import com.revrobotics.RelativeEncoder;
 import com.revrobotics.CANSparkMaxLowLevel.MotorType;
 
-import edu.wpi.first.math.controller.PIDController;
+// import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.geometry.Rotation2d;
 import edu.wpi.first.math.kinematics.SwerveModulePosition;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import static frc.robot.Constants.SwerveModuleConstants.*;
 import static frc.robot.Constants.SwerveModuleConstants.PID.*;
+
 import static frc.robot.Constants.MeasurementConstants.*;
 import static frc.robot.Constants.CANConstants;
 
@@ -31,7 +33,7 @@ public class SwerveModule extends SubsystemBase {
   private final RelativeEncoder m_steerRelativeEncoder;
   private final CANCoder m_steerEncoder;
 
-  private final PIDController m_steerPIDController;
+  private final SparkMaxPIDController m_steerPIDController;
 
   private final double m_steerEncoderOffset;
 
@@ -68,12 +70,13 @@ public class SwerveModule extends SubsystemBase {
 
     m_modulePosition = new SwerveModulePosition();
   
-    m_steerPIDController = new PIDController(
-      kSteerP,
-      kSteerI,
-      kSteerD
-    );
-    m_steerPIDController.enableContinuousInput(0, 360);
+    m_steerPIDController = m_steerMotor.getPIDController();
+    m_steerPIDController.setP(kSteerP);
+    m_steerPIDController.setI(kSteerI);
+    m_steerPIDController.setD(kSteerD);
+    m_steerPIDController.setPositionPIDWrappingEnabled(true);
+    m_steerPIDController.setPositionPIDWrappingMaxInput(360);
+    m_steerPIDController.setPositionPIDWrappingMinInput(0);
 
     m_driveMotor.burnFlash();
     m_steerMotor.burnFlash();
@@ -114,16 +117,14 @@ public class SwerveModule extends SubsystemBase {
   }
 
   public void setDesiredState(SwerveModuleState state) {
+    CANSparkMax.ControlType controlType = CANSparkMax.ControlType.kPosition;
     // System.out.println("Pre Optimize: " + state.speedMetersPerSecond);
     state = SwerveModuleState.optimize(state, getSteerAngle());
     // System.out.println("Post Optimize: " + state.speedMetersPerSecond);
     // System.out.println("Setting: " + (state.speedMetersPerSecond / kMaxSpeedMetersPerSecond));
     m_driveMotor.set(state.speedMetersPerSecond / kMaxSpeedMetersPerSecond);
-    m_steerMotor.set(
-      m_steerPIDController.calculate(
-        m_steerRelativeEncoder.getPosition(), 
-        state.angle.getDegrees() + m_steerEncoderOffset)
-    );
+    // m_steerPIDController.setReference(state.angle, CANSparkMax.ControlType.kPosition);\
+    m_steerPIDController.setReference(state.angle.getDegrees() + m_steerEncoderOffset, controlType);
   }
   
   private void setMotorSettings(CANSparkMax motor, int currentLimit) {
